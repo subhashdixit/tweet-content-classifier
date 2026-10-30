@@ -125,7 +125,9 @@ def create_app(config: dict | None = None) -> Flask:
         return jsonify(
             status="ready",
             version=service.report["version"],
-            revision=os.environ.get("APP_REVISION", "local"),
+            revision=os.environ.get(
+                "RENDER_GIT_COMMIT", os.environ.get("APP_REVISION", "local")
+            ),
         )
 
     @app.errorhandler(ValueError)

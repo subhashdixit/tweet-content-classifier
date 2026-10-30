@@ -82,7 +82,7 @@ Scores, the applied threshold and the source class label are returned. The CSV c
 ```bash
 python scripts/train.py
 python scripts/plot_results.py
-python -m black --check src scripts tests wsgi.py gunicorn.conf.py deploy
+python -m black --check src scripts tests wsgi.py gunicorn.conf.py
 python -m pylint src scripts wsgi.py gunicorn.conf.py
 python -m pytest -q
 python scripts/smoke_test.py --url http://127.0.0.1:8000 --attempts 3
@@ -101,26 +101,26 @@ src/tweet_classifier/  service and Flask application factory
 scripts/              training, plotting and real HTTP smoke checks
 models/               frozen pipeline, evaluation and sample
 tests/                behavior checks
-deploy/               PythonAnywhere WSGI example
+render.yaml           manual free-plan release configuration
 Dockerfile            optional reproducible Linux runtime
 archive/              preserved original documentation
 ```
 
-## Manual PythonAnywhere deployment
+## Manual Render deployment
 
-This project deliberately demonstrates **manual release**, without a custom GitHub Actions workflow. Run the quality checks before every release. CI would automate those checks; this release path relies on the maintainer running them and recording the deployed revision.
+This project deliberately demonstrates a **manual release**, without a custom GitHub Actions workflow. Run the quality checks before every release. The hosting configuration sets `autoDeployTrigger: off`, so a GitHub push does not automatically publish a new version.
 
-1. Sign in to [PythonAnywhere](https://www.pythonanywhere.com/), open a Bash console and clone this repository under your account home directory.
-2. Create a Python **3.11** virtual environment, activate it, install **production** dependencies with `pip install --no-cache-dir -r requirements.txt`, then `pip install --no-deps .`. Keep training and plotting dependencies off the small serving account.
-3. In **Web → Add a new web app**, choose **Manual configuration**, matching Python 3.11. Set the virtualenv path to your environment and source/working directory to the checkout.
-4. Replace the generated WSGI configuration using [deploy/pythonanywhere_wsgi.py](deploy/pythonanywhere_wsgi.py). Replace `YOUR_USERNAME` with your actual account name. Its absolute model path avoids working-directory mistakes.
-5. In the checkout run `git rev-parse HEAD > RELEASE_REVISION`. This ignored file records the deployed Git revision. Click **Reload** on the Web tab.
-6. Open the assigned `https://YOUR_USERNAME.pythonanywhere.com` address. Check `/health/ready`, submit sample text and upload the example CSV. Run `scripts/smoke_test.py --url YOUR_URL --expected-revision COMMIT` locally.
-7. Inspect the Web error/server logs if startup fails. Common causes are a Python/virtualenv mismatch, an incorrect absolute checkout path or missing model files. Do not enable Flask debug mode publicly.
+1. Connect this repository to Render and create a Blueprint using `render.yaml`.
+2. Confirm **Free**, branch `main`, the production dependency/package build command and Gunicorn start command. No API keys or paid database are required.
+3. Deploy the Blueprint. Render builds the Python environment and starts the web process. `/health/ready` reports its actual `RENDER_GIT_COMMIT`.
+4. Open the assigned `onrender.com` URL, classify sample text and download/score the example CSV. Run `python scripts/smoke_test.py --url YOUR_URL --expected-revision COMMIT` from your local environment.
+5. Inspect service logs for missing files, dependency incompatibility or incorrect commands. Never enable Flask debug mode on the public service.
 
-[Current free-account limits](https://help.pythonanywhere.com/pages/FreeAccountsFeatures/) include a small disk quota, a single web app/worker and renewal/expiry conditions. A deployed URL will be added after an authenticated deployment has actually been verified. Account setup is separate from having working source code.
+For each update, run Black, Pylint and pytest locally, merge the reviewed change, then use **Manual Deploy → Deploy latest commit** in Render. Verify the reported commit and smoke test again. CI would automate the quality gate; this example deliberately makes the maintainer responsible for executing it. Manual deployment still has a release process, but has no automatic trigger from a passing check.
 
-For a new release, pull a reviewed commit, install changed requirements, write `RELEASE_REVISION`, reload and repeat the smoke check. To roll back, check out the previous known-good commit **with its matching model and dependencies**, rewrite the revision file and reload. Git records source/model history; it does not automatically undo provider settings. Manual release is easy to understand but is easier to forget and harder to scale than an automated, tested release gate.
+To roll back, select an earlier successful deploy in Render, or revert the source/model change through a PR and manually deploy the resulting commit. Restore matching model files and dependencies together. Git versions code and artifacts; it does not automatically undo provider settings. Manual releases are easy to inspect but easier to forget or publish out of sequence than automated releases.
+
+**Hosting** provides the machine and public HTTPS address. **Deployment** installs and starts a particular revision there. [Render free service limits](https://render.com/docs/free) include idle spin-down, shared monthly runtime and ephemeral disk. This demo is not an always-on guarantee. Serving uploads remain in memory; provider infrastructure may retain ordinary connection metadata. A live URL is added only after actual deployment verification.
 
 ## Optional Docker runtime
 
@@ -129,10 +129,10 @@ docker build -t tweet-content-classifier:local .
 docker run --rm --read-only --tmpfs /tmp -p 8000:8000 tweet-content-classifier:local
 ```
 
-Docker packages Python, dependencies, model and Gunicorn into a consistent runtime. It reduces “works on my machine” differences, but adds an image build and maintenance overhead. It does not create hosting or make the model accurate. PythonAnywhere's manual WSGI path does not require Docker.
+Docker packages Python, dependencies, model and Gunicorn into a consistent runtime. It reduces “works on my machine” differences, but adds an image build and maintenance overhead. It does not create hosting or make the model accurate. The native Render deployment does not require Docker.
 
 ## Responsible interpretation and next steps
 
 Dialect, identity terms, sarcasm, quotation and changes in language can cause serious errors. A random grouped text split is not a current population audit. Useful next work includes independently reviewed labels, author/time-separated testing, subgroup error analysis, probability calibration and a human review workflow. Those are not claimed as completed. There is no live social-platform integration, user profiling or automated enforcement.
 
-References: [scikit-learn leakage guidance](https://scikit-learn.org/stable/common_pitfalls.html), [model evaluation](https://scikit-learn.org/stable/modules/model_evaluation.html), [PythonAnywhere Flask guide](https://help.pythonanywhere.com/pages/Flask/).
+References: [scikit-learn leakage guidance](https://scikit-learn.org/stable/common_pitfalls.html), [model evaluation](https://scikit-learn.org/stable/modules/model_evaluation.html), [Render Flask guide](https://render.com/docs/deploy-flask).
