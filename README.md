@@ -1,5 +1,7 @@
 # Tweet Content Classifier
 
+**Live application:** [Open Tweet Content Classifier](https://tweet-content-classifier.onrender.com)
+
 A Flask learning app that classifies English tweet text against the **historical racist/sexist binary labels in this repository**. This is not positive/negative sentiment analysis. The original repository was named `Twitter_Sentiment_Analysis`; its notebook and source CSVs remain available.
 
 Enter text, inspect the model score and threshold, or score a small CSV. A prediction is a fallible pattern match against this source dataset, not a judgment about a person or a replacement for contextual human review.
