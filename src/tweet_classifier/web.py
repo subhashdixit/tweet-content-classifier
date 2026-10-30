@@ -76,7 +76,7 @@ def create_app(config: dict | None = None) -> Flask:
         return jsonify(
             predictions=service.predict(payload["records"], payload.get("threshold")),
             version=service.report["version"],
-            evaluation_target=("historical racist/sexist source labels"),
+            evaluation_target=("source racist/sexist labels; not generic sentiment"),
         )
 
     @app.get("/sample.csv")
