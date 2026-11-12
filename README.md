@@ -1,12 +1,63 @@
 # Tweet Content Classifier
 
-**Live application:** [Open Tweet Content Classifier](https://tweet-content-classifier.onrender.com)
+## 1. Project overview
 
-A Flask learning app that classifies English tweet text against the **historical racist/sexist binary labels in this repository**. This is not positive/negative sentiment analysis. The original repository was named `Twitter_Sentiment_Analysis`; its notebook and source CSVs remain available.
+Flask app for historical racist/sexist tweet source-label classification with a documented manual Render release.
 
-Enter text, inspect the model score and threshold, or score a small CSV. A prediction is a fallible pattern match against this source dataset, not a judgment about a person or a replacement for contextual human review.
+[Live demo](https://tweet-content-classifier.onrender.com) · [Source repository](https://github.com/subhashdixit/tweet-content-classifier)
 
-## Problem and data
+![Tweet Content Classifier application screen](docs/images/application.png)
+
+## 2. Motivation and problem statement
+
+### Objective
+
+Evaluate a text classifier against the supplied historical racist/sexist binary labels.
+
+### Problem statement
+
+Positive examples are uncommon and the source labels do not cover every kind of harmful language.
+
+### Motivation
+
+Held-out class metrics show where a threshold changes misses and false alarms.
+
+## 3. Solution and scope
+
+**Inputs** — English tweet text. **Outputs** — Source-label score and thresholded result.
+
+## 4. Quick start and usage
+
+Start with the documented sample or supported input. Review the output and any validation feedback. Open the live demo above or use the local setup below.
+
+## 5. High-level architecture
+
+```mermaid
+flowchart LR
+    A["User input"] --> B["Interface"] --> C["Prediction service"] --> D["Result"]
+```
+
+## 6. End-to-end request workflow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Project interface
+    participant Engine as Prediction service
+    User->>UI: Provide English tweet text
+    UI->>Engine: Process validated input
+    Engine->>Engine: Normalize, vectorize and apply the reviewed binary classifier
+    Engine-->>UI: Source-label score and thresholded result
+    UI-->>User: Present result or input feedback
+```
+
+## 7. Data sources, inputs, and outputs
+
+| Input | Processing | Output |
+| --- | --- | --- |
+| English tweet text | Normalize, vectorize and apply the reviewed binary classifier | Source-label score and thresholded result |
+
+### Problem and data
 
 The training CSV contains **31,962 labelled tweets**: 29,720 class 0 and 2,242 class 1. Class 0 means the source did not assign its racist/sexist label; it does not guarantee harmless content. The separate **17,197-row test CSV has no labels**, so it cannot establish accuracy. Dataset annotation instructions, consent, authorship and current representativeness have not been independently verified.
 
@@ -24,7 +75,25 @@ flowchart LR
  H --> I[Flask form / JSON / CSV]
 ```
 
-## How the model works
+## 8. Data flow and ETL pipeline
+
+```mermaid
+flowchart LR
+    A["English tweet text"] --> B["Normalize, vectorize and apply the reviewed binary classifier"] --> C["Source-label score and thresholded result"]
+```
+
+```mermaid
+flowchart LR
+    A["Versioned dataset"] --> B["Validate and partition"] --> C["Fit candidate pipeline"] --> D["Evaluate and export"] --> E["Load serving artifact"]
+```
+
+## 9. Low-level design and interfaces
+
+Implementation entry points are [`wsgi.py`](<wsgi.py>), [`scripts/train.py`](<scripts/train.py>), [`src/tweet_classifier/service.py`](<src/tweet_classifier/service.py>), [`src/tweet_classifier/web.py`](<src/tweet_classifier/web.py>).
+
+## 10. Concepts and algorithms
+
+### How the model works
 
 1. **Normalization** standardizes text for duplicate grouping and representation. This reduces superficial differences; it does not understand sarcasm or intent.
 2. **TF-IDF** turns words and adjacent word pairs into sparse numeric features. A term becomes influential when it appears in a document but is less common across the corpus. The vocabulary is limited to 20,000 features and learned from training text only.
@@ -35,7 +104,16 @@ flowchart LR
 
 The score is not a calibrated probability that a statement is harmful. Moving the threshold changes the balance between false alarms and missed positive labels. A low threshold usually finds more positives and also raises more false alarms. Vocabulary warnings expose inputs for which the learned words provide little evidence.
 
-## Measured results
+## 11. Technology choices and dependencies
+
+- **Python**. Keep dataset preparation, fitting, and evaluation reproducible outside the serving path.
+- **Flask**. Share the same service across interactive and HTTP entry points.
+
+[Dependency versions and runtime rationale](DEPENDENCIES.md)
+
+## 12. Training, inference, and evaluation
+
+### Measured results
 
 | Held-out measure | Value | Meaning and limitation |
 |---|---:|---|
@@ -51,7 +129,34 @@ Confusion matrix, rows actual and columns predicted: `[[6206, 64], [226, 232]]`.
 
 ![Held-out evaluation](docs/images/confusion-matrix.png)
 
-## Run locally
+### Reproduce training and validate
+
+```bash
+python scripts/train.py
+python scripts/plot_results.py
+python -m black --check src scripts tests wsgi.py gunicorn.conf.py
+python -m pylint src scripts wsgi.py gunicorn.conf.py
+python -m pytest -q
+python scripts/smoke_test.py --url http://127.0.0.1:8000 --attempts 3
+```
+
+Training reads the original labelled CSV, reconstructs the grouped split, fits candidate pipelines and writes `models/pipeline.joblib`, `models/metrics.json`, `models/sample.json`. Plotting creates the result image. Training can take several minutes. Regenerating artifacts is a model change: review results and update the artifact hash together. Python pickle/joblib can execute code; load only trusted repository artifacts, never an uploaded model. The serving service checks the recorded SHA-256 before loading. A hash detects accidental mismatch, not a malicious change to both files.
+
+Tests exercise real-model predictions, threshold handling, input limits, unknown vocabulary, CSV and HTTP routes. Black keeps formatting consistent; Pylint checks common mistakes; pytest checks behavior. Passing these does not prove unbiased or production-safe moderation.
+
+Validation code is available in [`tests/test_application.py`](<tests/test_application.py>).
+
+## 13. Limitations and data handling
+
+### Responsible interpretation and next steps
+
+Dialect, identity terms, sarcasm, quotation and changes in language can cause serious errors. A random grouped text split is not a current population audit. Useful next work includes independently reviewed labels, author/time-separated testing, subgroup error analysis, probability calibration and a human review workflow. Those are not claimed as completed. There is no live social-platform integration, user profiling or automated enforcement.
+
+References: [scikit-learn leakage guidance](https://scikit-learn.org/stable/common_pitfalls.html), [model evaluation](https://scikit-learn.org/stable/modules/model_evaluation.html), [Render Flask guide](https://render.com/docs/deploy-flask).
+
+## 14. Installation and local setup
+
+### Run locally
 
 Use Python 3.10 or 3.11. Commands assume a POSIX shell; on Windows activate `.venv\Scripts\activate` instead.
 
@@ -79,22 +184,20 @@ curl -s -X POST http://127.0.0.1:8000/predict-csv \
 
 Scores, the applied threshold and the source class label are returned. The CSV contains row identifiers and predictions rather than echoing submitted text. These endpoints are public demo endpoints, not authenticated enterprise APIs.
 
-## Reproduce training and validate
+### Exact local dependency versions
+
+[DEPENDENCIES.md](DEPENDENCIES.md) lists the pinned runtime, development and training environments. `requirements.txt` now explicitly records all external runtime package versions, including transitive dependencies.
 
 ```bash
-python scripts/train.py
-python scripts/plot_results.py
-python -m black --check src scripts tests wsgi.py gunicorn.conf.py
-python -m pylint src scripts wsgi.py gunicorn.conf.py
-python -m pytest -q
-python scripts/smoke_test.py --url http://127.0.0.1:8000 --attempts 3
+python3.11 -m venv .venv
+# Activate: source .venv/bin/activate (Windows: .venv\Scripts\activate)
+python -m pip install -r requirements.txt
+python -m pip check
 ```
 
-Training reads the original labelled CSV, reconstructs the grouped split, fits candidate pipelines and writes `models/pipeline.joblib`, `models/metrics.json`, `models/sample.json`. Plotting creates the result image. Training can take several minutes. Regenerating artifacts is a model change: review results and update the artifact hash together. Python pickle/joblib can execute code; load only trusted repository artifacts, never an uploaded model. The serving service checks the recorded SHA-256 before loading. A hash detects accidental mismatch, not a malicious change to both files.
+## 15. Repository structure
 
-Tests exercise real-model predictions, threshold handling, input limits, unknown vocabulary, CSV and HTTP routes. Black keeps formatting consistent; Pylint checks common mistakes; pytest checks behavior. Passing these does not prove unbiased or production-safe moderation.
-
-## Project layout
+### Project layout
 
 ```text
 src/tweet_classifier/  service and Flask application factory
@@ -108,7 +211,9 @@ Dockerfile            optional reproducible Linux runtime
 archive/              preserved original documentation
 ```
 
-## Manual Render deployment
+## 16. Deployment and operations
+
+### Manual Render deployment
 
 This project deliberately demonstrates a **manual release**, without a custom GitHub Actions workflow. Run the quality checks before every release. The hosting configuration sets `autoDeployTrigger: off`, so a GitHub push does not automatically publish a new version.
 
@@ -124,7 +229,7 @@ To roll back, select an earlier successful deploy in Render, or revert the sourc
 
 **Hosting** provides the machine and public HTTPS address. **Deployment** installs and starts a particular revision there. [Render free service limits](https://render.com/docs/free) include idle spin-down, shared monthly runtime and ephemeral disk. This demo is not an always-on guarantee. Serving uploads remain in memory; provider infrastructure may retain ordinary connection metadata. A live URL is added only after actual deployment verification.
 
-## Optional Docker runtime
+### Optional Docker runtime
 
 ```bash
 docker build -t tweet-content-classifier:local .
@@ -133,19 +238,6 @@ docker run --rm --read-only --tmpfs /tmp -p 8000:8000 tweet-content-classifier:l
 
 Docker packages Python, dependencies, model and Gunicorn into a consistent runtime. It reduces “works on my machine” differences, but adds an image build and maintenance overhead. It does not create hosting or make the model accurate. The native Render deployment does not require Docker.
 
-## Responsible interpretation and next steps
+## 17. License, credits, and support
 
-Dialect, identity terms, sarcasm, quotation and changes in language can cause serious errors. A random grouped text split is not a current population audit. Useful next work includes independently reviewed labels, author/time-separated testing, subgroup error analysis, probability calibration and a human review workflow. Those are not claimed as completed. There is no live social-platform integration, user profiling or automated enforcement.
-
-References: [scikit-learn leakage guidance](https://scikit-learn.org/stable/common_pitfalls.html), [model evaluation](https://scikit-learn.org/stable/modules/model_evaluation.html), [Render Flask guide](https://render.com/docs/deploy-flask).
-
-## Exact local dependency versions
-
-[DEPENDENCIES.md](DEPENDENCIES.md) lists the pinned runtime, development and training environments. `requirements.txt` now explicitly records all external runtime package versions, including transitive dependencies.
-
-```bash
-python3.11 -m venv .venv
-# Activate: source .venv/bin/activate (Windows: .venv\Scripts\activate)
-python -m pip install -r requirements.txt
-python -m pip check
-```
+The repository does not contain a root LICENSE file. Check upstream and data-source terms before reuse. Report reproducible issues through [GitHub Issues](https://github.com/subhashdixit/tweet-content-classifier/issues).
